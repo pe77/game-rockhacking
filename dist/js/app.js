@@ -569,6 +569,12 @@ var GameBase;
             //  ** ADDING Other things  ** //
             // scripts
             this.load.script('gray', 'assets/default/scripts/filters/Gray.js');
+            // Main - Level 1
+            this.load.xml('level1-data', 'assets/states/main/level1/data/notes.xml');
+            this.load.audio('level1-song', 'assets/states/main/level1/audio/song.mp3');
+            this.load.spritesheet('lane-string-bg', 'assets/default/images/ui/lane/string.png', 53, 4, 2);
+            this.load.image('lane-bg', 'assets/default/images/ui/lane/bg.png');
+            this.load.spritesheet('wall-block', 'assets/default/images/ui/wall/block.png', 15, 15, 2);
             // generic
             // this.load.image('cinematic-bg', 'assets/states/intro/images/cinematic-bg.jpg');
             // this.load.audio('intro-sound', 'assets/states/intro/sounds/intro.mp3');
@@ -580,6 +586,157 @@ var GameBase;
         return Loader;
     }(Pk.PkLoader));
     GameBase.Loader = Loader;
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var Music = (function (_super) {
+        __extends(Music, _super);
+        function Music(game, musicId) {
+            var _this = _super.call(this, game) || this;
+            // music meta
+            _this.bpm = 50;
+            _this.name = "";
+            _this.author = "";
+            _this.pulseDelay = 0;
+            // audio info
+            _this.duration = 0; // ms
+            _this.decoded = false;
+            _this.musicId = musicId;
+            // get Data
+            _this.xmlData = _this.game.cache.getXML('level' + _this.musicId + '-data');
+            // setting meta
+            _this.bpm = parseInt(_this.xmlData.getElementsByTagName("music")[0].attributes.bpm.value);
+            _this.pulseDelay = parseInt(_this.xmlData.getElementsByTagName("music")[0].attributes.pulseDealy.value); // wait for pulse count 
+            _this.name = _this.xmlData.getElementsByTagName("music")[0].attributes.name.value;
+            _this.author = _this.xmlData.getElementsByTagName("music")[0].attributes.author.value;
+            // music
+            _this.music = _this.game.add.audio('level' + _this.musicId + '-song');
+            console.log('Create music[' + _this.name + ' - ' + _this.author + '] ' + _this.bpm + 'BPM');
+            return _this;
+        }
+        Music.prototype.decode = function () {
+            var _this = this;
+            this.game.sound.setDecodedCallback([this.music], function () {
+                // get duration and calc pulses
+                _this.duration = _this.game.cache.getSound('level' + _this.musicId + '-song').data.duration * 1000; // music duration (in ms)
+                _this.bpmPulses = GameBase.Music.pulseCalculation(0, _this.duration, _this.bpm); // total pulses (bpm based)
+                _this.decoded = true;
+                // dispatch
+                _this.event.dispatch(GameBase.E.Music.OnDecode);
+            }, this);
+        };
+        Music.prototype.play = function () {
+            if (this.decoded) {
+                this.music.play();
+                // init pulse count event
+                var pulseTime = (Phaser.Timer.SECOND * 60) / this.bpm;
+                var even = true;
+                this.game.time.events.add(this.pulseDelay, function () {
+                    this.game.time.events.loop(pulseTime, function () {
+                        this.event.dispatch(GameBase.E.Music.OnPulse, { even: even = !even, pulseTime: pulseTime });
+                    }, this);
+                }, this);
+            }
+        };
+        Music.pulseCalculation = function (from, to, bpm) {
+            var totalPulseTime = from;
+            var pulseMoment = 0;
+            var pulses = [];
+            pulses.push(from);
+            while (totalPulseTime < to) {
+                pulseMoment = ((Phaser.Timer.SECOND * 60) / (bpm * 1000)) * 1000;
+                pulses.push(pulseMoment + totalPulseTime);
+                totalPulseTime += pulseMoment;
+            }
+            if (pulses[pulses.length - 1] > to)
+                pulses.pop();
+            //
+            return pulses;
+        };
+        return Music;
+    }(Pk.PkElement));
+    GameBase.Music = Music;
+    var E;
+    (function (E) {
+        var Music;
+        (function (Music) {
+            Music.OnDecode = "OnDecodeMusic";
+            Music.OnPulse = "OnPulseMusic";
+        })(Music = E.Music || (E.Music = {}));
+    })(E = GameBase.E || (GameBase.E = {}));
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var Lane = (function (_super) {
+        __extends(Lane, _super);
+        function Lane(game, size) {
+            var _this = _super.call(this, game) || this;
+            _this.strings = [];
+            _this.size = size;
+            _this.ui = new GameBase.ui.Lane(game, size);
+            return _this;
+        }
+        Lane.prototype.setMark = function (mark) {
+            this.mark = mark;
+        };
+        Lane.prototype.addString = function () {
+            var string = new GameBase.String(this.game, this.size);
+            this.strings.push(string);
+        };
+        Lane.prototype.create = function () {
+            var _this = this;
+            this.ui.create();
+            this.strings.forEach(function (string, i) {
+                string.ui.create();
+                string.ui.y += i * (string.ui.height + 20);
+                string.ui.y += 10;
+                // create even|odd pulse strings
+                if (i % 2 == 0)
+                    string.ui.pulse();
+                //
+                _this.ui.add(string.ui);
+            });
+        };
+        Lane.prototype.pulse = function () {
+            // pulse lane
+            this.ui.pulse();
+            // pulse strings
+            this.strings.forEach(function (string) {
+                string.ui.pulse();
+            });
+        };
+        return Lane;
+    }(Pk.PkElement));
+    GameBase.Lane = Lane;
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var Mark = (function (_super) {
+        __extends(Mark, _super);
+        function Mark(game) {
+            return _super.call(this, game) || this;
+        }
+        return Mark;
+    }(Pk.PkElement));
+    GameBase.Mark = Mark;
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var String = (function (_super) {
+        __extends(String, _super);
+        function String(game, size) {
+            var _this = _super.call(this, game) || this;
+            _this.size = size;
+            _this.ui = new GameBase.ui.String(game, size);
+            return _this;
+        }
+        return String;
+    }(Pk.PkElement));
+    GameBase.String = String;
 })(GameBase || (GameBase = {}));
 /// <reference path='../../pkframe/refs.ts' />
 var GameBase;
@@ -608,6 +765,32 @@ var GameBase;
             this.enterKey.onDown.add(function () {
                 // this.transition.change('Menu', 1111, 'text', {a:true, b:[1, 2]});  // return with some foo/bar args
             }, this);
+            var music = new GameBase.Music(this.game, 1);
+            // wait for end decode
+            music.event.add(GameBase.E.Music.OnDecode, function () {
+                console.log('end decode');
+                // play music
+                music.play();
+                music.music.volume = 0.0;
+            }, this);
+            music.event.add(GameBase.E.Music.OnPulse, function () {
+                console.log('pulse');
+                path.pulse();
+                wall.pulse();
+            }, this);
+            // init decode
+            music.decode();
+            var path = new GameBase.Lane(this.game, 700);
+            path.addString();
+            path.addString();
+            path.addString();
+            path.create();
+            path.ui.x += 50;
+            path.ui.y += 200;
+            var wall = new GameBase.Wall(this.game);
+            wall.addBlock();
+            wall.addBlock();
+            wall.create();
         };
         Main.prototype.render = function () {
             this.game.debug.text('(Main Screen) ', 35, 35);
@@ -727,67 +910,167 @@ var GameBase;
         Transitions.Slide = Slide;
     })(Transitions = GameBase.Transitions || (GameBase.Transitions = {}));
 })(GameBase || (GameBase = {}));
-var Pk;
-(function (Pk) {
-    var PkLayer = (function (_super) {
-        __extends(PkLayer, _super);
-        function PkLayer() {
-            var _this = _super !== null && _super.apply(this, arguments) || this;
-            _this.distance = 1; // use for parallax effect
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var ui;
+    (function (ui) {
+        var Lane = (function (_super) {
+            __extends(Lane, _super);
+            function Lane(game, size) {
+                var _this = _super.call(this, game) || this;
+                _this.size = size;
+                return _this;
+            }
+            Lane.prototype.create = function () {
+                this.bg = this.game.add.tileSprite(0, 0, this.size, 70, "lane-bg");
+                this.add(this.bg);
+            };
+            Lane.prototype.pulse = function () {
+            };
+            return Lane;
+        }(Pk.PkElement));
+        ui.Lane = Lane;
+    })(ui = GameBase.ui || (GameBase.ui = {}));
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var ui;
+    (function (ui) {
+        var String = (function (_super) {
+            __extends(String, _super);
+            function String(game, size) {
+                var _this = _super.call(this, game) || this;
+                _this.size = size;
+                return _this;
+            }
+            String.prototype.create = function () {
+                this.bg = this.game.add.tileSprite(0, 0, this.size, 4, "lane-string-bg");
+                this.animation = this.bg.animations.add("pulse");
+                this.animation.loop = true;
+                this.add(this.bg);
+            };
+            String.prototype.pulse = function () {
+                if (this.animation)
+                    this.animation.next();
+                //
+            };
+            return String;
+        }(Pk.PkElement));
+        ui.String = String;
+    })(ui = GameBase.ui || (GameBase.ui = {}));
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var ui;
+    (function (ui) {
+        var Wall = (function (_super) {
+            __extends(Wall, _super);
+            function Wall(game) {
+                return _super.call(this, game) || this;
+            }
+            Wall.prototype.create = function () {
+                // this.bg = this.game.add.tileSprite(0, 0, this.size, 70, "lane-bg");
+                // this.add(this.bg);
+            };
+            Wall.prototype.pulse = function () {
+            };
+            return Wall;
+        }(Pk.PkElement));
+        ui.Wall = Wall;
+    })(ui = GameBase.ui || (GameBase.ui = {}));
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var ui;
+    (function (ui) {
+        var WallBlock = (function (_super) {
+            __extends(WallBlock, _super);
+            function WallBlock(game) {
+                return _super.call(this, game) || this;
+            }
+            WallBlock.prototype.create = function () {
+                this.block = this.game.add.sprite(0, 0, "wall-block");
+                this.animation = this.block.animations.add("pulse");
+                this.animation.loop = true;
+                /*
+                this.bg = this.game.add.tileSprite(0, 0, this.size, 4, "lane-string-bg")
+                this.animation = this.bg.animations.add("pulse");
+                this.animation.loop = true;
+                */
+                this.add(this.block);
+            };
+            WallBlock.prototype.pulse = function () {
+                if (this.animation)
+                    this.animation.next();
+                //
+            };
+            return WallBlock;
+        }(Pk.PkElement));
+        ui.WallBlock = WallBlock;
+    })(ui = GameBase.ui || (GameBase.ui = {}));
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var Wall = (function (_super) {
+        __extends(Wall, _super);
+        function Wall(game) {
+            var _this = _super.call(this, game) || this;
+            _this.blocks = [];
+            _this.ui = new GameBase.ui.Wall(game);
             return _this;
         }
-        return PkLayer;
-    }(Pk.PkElement));
-    Pk.PkLayer = PkLayer;
-})(Pk || (Pk = {}));
-/// <reference path='../event/PkEvent.ts' />
-/// <reference path='../PkGame.ts' />
-/// <reference path='PkLayer.ts' />
-var Pk;
-(function (Pk) {
-    var PkParallax = (function () {
-        function PkParallax(state) {
-            this.layers = [];
-            this.state = state;
-        }
-        PkParallax.prototype.add = function (element, distance, cameraLock) {
-            if (cameraLock === void 0) { cameraLock = true; }
-            // if using TileSprite, distance is mandatary
-            if (element instanceof Phaser.TileSprite && !distance)
-                throw new Error("If you use TileSprite for parallax, distance param is mandatory");
-            //
-            if (element instanceof Pk.PkLayer && distance)
-                element.distance = distance;
-            //
-            if (element instanceof Pk.PkLayer && distance)
-                element.distance = distance;
-            //
-            if (element instanceof Phaser.TileSprite && cameraLock)
-                element.fixedToCamera = true;
-            //
-            this.layers.push({
-                tileElement: element instanceof Phaser.TileSprite ? element : null,
-                layerElement: element instanceof Pk.PkLayer ? element : null,
-                distance: element instanceof Pk.PkLayer ? element.distance : distance
+        Wall.prototype.addBlock = function () {
+            var block = new GameBase.WallBlock(this.game);
+            this.blocks.push(block);
+        };
+        Wall.prototype.create = function () {
+            var _this = this;
+            this.ui.create();
+            this.blocks.forEach(function (block, i) {
+                block.ui.create();
+                block.ui.y += i * (block.ui.height + 15);
+                block.ui.y += 10;
+                /*
+                string.ui.y += i * (string.ui.height + 20);
+                string.ui.y += 10;
+
+                // create even|odd pulse strings
+                if(i%2 == 0)
+                    string.ui.pulse();
+                //
+                */
+                _this.ui.add(block.ui);
             });
         };
-        PkParallax.prototype.update = function () {
-            for (var i in this.layers) {
-                // if is tile sprite element
-                if (this.layers[i].tileElement) {
-                    var posX = 1 / this.layers[i].distance;
-                    this.layers[i].tileElement.tilePosition.x = -this.state.game.camera.x * posX;
-                    this.layers[i].tileElement.tilePosition.y = -this.state.game.camera.y * posX;
-                }
-                // if is layer
-                if (this.layers[i].layerElement) {
-                    // @todo
-                }
-            }
-            ;
+        Wall.prototype.pulse = function () {
+            // pulse lane
+            this.ui.pulse();
+            // pulse strings
+            this.blocks.forEach(function (block) {
+                block.ui.pulse();
+            });
         };
-        return PkParallax;
-    }());
-    Pk.PkParallax = PkParallax;
-})(Pk || (Pk = {}));
+        return Wall;
+    }(Pk.PkElement));
+    GameBase.Wall = Wall;
+})(GameBase || (GameBase = {}));
+/// <reference path='../../pkframe/refs.ts' />
+var GameBase;
+(function (GameBase) {
+    var WallBlock = (function (_super) {
+        __extends(WallBlock, _super);
+        function WallBlock(game) {
+            var _this = _super.call(this, game) || this;
+            _this.ui = new GameBase.ui.WallBlock(game);
+            return _this;
+        }
+        return WallBlock;
+    }(Pk.PkElement));
+    GameBase.WallBlock = WallBlock;
+})(GameBase || (GameBase = {}));
 //# sourceMappingURL=app.js.map

@@ -31,7 +31,41 @@ module GameBase
                 // this.transition.change('Menu', 1111, 'text', {a:true, b:[1, 2]});  // return with some foo/bar args
             }, this);
 
+			var music:GameBase.Music = new GameBase.Music(this.game, 1);
+			
+			// wait for end decode
+			music.event.add(GameBase.E.Music.OnDecode, ()=>{
+				console.log('end decode')
+				// play music
+				music.play(); 
+				music.music.volume = 0.0;
+			}, this);
 
+			music.event.add(GameBase.E.Music.OnPulse, ()=>{
+				console.log('pulse');
+				path.pulse();
+
+				wall.pulse();
+			}, this);
+
+			// init decode
+			music.decode();
+
+			var path:GameBase.Lane = new GameBase.Lane(this.game, 700);
+			path.addString();
+			path.addString();
+			path.addString();
+
+			path.create();
+
+			path.ui.x += 50;
+			path.ui.y += 200;
+
+			var wall:GameBase.Wall = new GameBase.Wall(this.game);
+			wall.addBlock();
+			wall.addBlock();
+
+			wall.create();
     	}
 		
 		render()
